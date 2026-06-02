@@ -1,6 +1,5 @@
 import sys
 import os
-import math
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -9,15 +8,25 @@ import numpy as np
 from PIL import Image
 from model_adapter import DetectedBox, ModelAdapter
 
-# Score calibration: sqrt remap so a low raw zero-shot score (e.g. 0.09) displays
-# as a usable confidence (0.30). This is a cosmetic, monotonic display transform —
-# it does NOT change detection ordering. The real recall lever is running the model
-# at conf=threshold**2 (see detect()), which lets weak true positives survive.
-MIN_RAW_FLOOR = 0.02   # don't run predict below this even at tiny UI thresholds
+# ── Target-class recall + display heuristic (v1.2.0) ──────────────────────────
+# Immunity gate: target ("positive") classes are detected down to a fixed 2% raw
+# floor regardless of the UI threshold, so faint zero-shot batteries on dark
+# backgrounds (raw 2-6%) survive instead of being eliminated at the gate.
+RECALL_FLOOR = 0.02   # fixed raw-confidence floor for positives (immunity gate)
+
+# Display overhaul: any positive that survives the recall floor AND the decoy
+# cross-suppression has its score OVERWRITTEN into a high bracket so it reads as a
+# confident hit on the phone. NOTE: this discards the model's real confidence —
+# every surviving positive looks ~88-99% regardless of true certainty. It is a
+# deliberate display choice, not statistical calibration.
+BOOST_BASE = 0.85
+BOOST_SLOPE = 1.5
+MAX_DISPLAY = 0.99
 
 
-def _calibrate(raw: float) -> float:
-    return math.sqrt(max(0.0, raw))
+def _boost(raw: float) -> float:
+    """Map a raw positive score into the confident display bracket (0.85-0.99)."""
+    return min(MAX_DISPLAY, BOOST_BASE + raw * BOOST_SLOPE)
 
 # Per-prompt semantic expansion table.
 # "positive": semantic variants that describe the same target — all counted.
@@ -102,19 +111,18 @@ class YOLOWorldAdapter(ModelAdapter):
         img_array = np.array(image)
 
         classes, negative_indices = _build_classes(prompt)
-        # Recall fix: drop the model's raw confidence floor to threshold**2 so a
-        # raw ~9% detection survives when the UI slider is at 30%. Calibration
-        # (sqrt) later maps it back up to the 30% the user sees.
-        raw_conf = max(threshold ** 2, MIN_RAW_FLOOR)
+        # Immunity gate: run the model at the fixed 2% recall floor (NOT the UI
+        # threshold). Faint target detections survive here and are boosted later;
+        # the UI threshold no longer gates them out before scoring.
         print(f"[yolo_world] positive={[c for i,c in enumerate(classes) if i not in negative_indices]}")
         print(f"[yolo_world] negative={[c for i,c in enumerate(classes) if i in negative_indices]}")
-        print(f"[yolo_world] ui_threshold={threshold}  raw_conf_floor={raw_conf:.4f}")
+        print(f"[yolo_world] ui_threshold={threshold}  recall_floor={RECALL_FLOOR}")
 
         self._model.set_classes(classes)
 
         results = self._model.predict(
             img_array,
-            conf=raw_conf,
+            conf=RECALL_FLOOR,
             iou=0.5,
             verbose=False,
         )
@@ -163,15 +171,17 @@ class YOLOWorldAdapter(ModelAdapter):
         final_pos.sort(key=lambda b: b.score, reverse=True)
         final = final_pos[:max_boxes]
 
-        # Final step: apply sqrt calibration to displayed scores, then drop anything
-        # that still falls below the UI threshold (safety net — the raw_conf floor
-        # already enforces this when threshold**2 >= MIN_RAW_FLOOR).
-        calibrated: List[DetectedBox] = []
+        # Display overhaul: overwrite each surviving positive's score into the
+        # confident bracket, then apply the UI threshold to the BOOSTED score so the
+        # slider still does something (at 30% all survivors show; at 95% only the
+        # strongest raw detections do). Boosted scores are ~0.88+, so targets "pop"
+        # at the default 30% slider as intended.
+        boosted: List[DetectedBox] = []
         for b in final:
-            cal = _calibrate(b.score)
-            if cal >= threshold:
-                calibrated.append(b.model_copy(update={"score": round(cal, 4)}))
-        return [b.model_copy(update={"id": i}) for i, b in enumerate(calibrated)]
+            disp = round(_boost(b.score), 4)
+            if disp >= threshold:
+                boosted.append(b.model_copy(update={"score": disp}))
+        return [b.model_copy(update={"id": i}) for i, b in enumerate(boosted)]
 
     def verify_crops(
         self,
