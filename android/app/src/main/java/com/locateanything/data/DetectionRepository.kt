@@ -2,9 +2,7 @@ package com.locateanything.data
 
 import android.content.Context
 import android.net.Uri
-import com.google.gson.Gson
 import com.locateanything.data.model.DetectionResponse
-import com.locateanything.ml.EdgeProposal
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -44,7 +42,6 @@ class DetectionRepository {
         prompt: String,
         threshold: Float,
         maxBoxes: Int = 60,
-        proposals: List<EdgeProposal>? = null,
     ): DetectionResponse {
         val bytes = context.contentResolver.openInputStream(imageUri)!!.use { it.readBytes() }
         val imagePart = MultipartBody.Part.createFormData(
@@ -56,11 +53,6 @@ class DetectionRepository {
         val threshBody   = threshold.toString().toRequestBody("text/plain".toMediaTypeOrNull())
         val maxBoxesBody = maxBoxes.toString().toRequestBody("text/plain".toMediaTypeOrNull())
 
-        // Serialize proposals to JSON only if non-empty; null = omit from multipart (server_only)
-        val proposedBoxesBody = proposals
-            ?.takeIf { it.isNotEmpty() }
-            ?.let { Gson().toJson(it).toRequestBody("application/json".toMediaTypeOrNull()) }
-
-        return api.detect(imagePart, promptBody, threshBody, maxBoxesBody, proposedBoxesBody)
+        return api.detect(imagePart, promptBody, threshBody, maxBoxesBody)
     }
 }

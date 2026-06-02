@@ -34,10 +34,6 @@ android {
     buildFeatures {
         compose = true
     }
-
-    aaptOptions {
-        noCompress += listOf("tflite", "onnx")
-    }
 }
 
 dependencies {
@@ -58,7 +54,6 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.exifinterface)
     implementation(libs.material)
-    implementation(libs.onnxruntime.android)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

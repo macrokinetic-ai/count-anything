@@ -15,7 +15,7 @@ from model_adapter import DetectedBox
 DEBUG_SAVE = os.getenv("DEBUG_SAVE", "0") == "1"
 _DEBUG_PATH = os.path.join(os.path.dirname(__file__), "debug_input.jpg")
 
-VERSION_ID = "v1.0.7_HYBRID"
+VERSION_ID = "v1.1.0_OPUS_CALIBRATED_ENGINE"
 
 
 class DetectResponse(BaseModel):

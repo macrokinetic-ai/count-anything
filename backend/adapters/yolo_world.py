@@ -1,5 +1,6 @@
 import sys
 import os
+import math
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -7,6 +8,16 @@ from typing import List, Set, Tuple
 import numpy as np
 from PIL import Image
 from model_adapter import DetectedBox, ModelAdapter
+
+# Score calibration: sqrt remap so a low raw zero-shot score (e.g. 0.09) displays
+# as a usable confidence (0.30). This is a cosmetic, monotonic display transform —
+# it does NOT change detection ordering. The real recall lever is running the model
+# at conf=threshold**2 (see detect()), which lets weak true positives survive.
+MIN_RAW_FLOOR = 0.02   # don't run predict below this even at tiny UI thresholds
+
+
+def _calibrate(raw: float) -> float:
+    return math.sqrt(max(0.0, raw))
 
 # Per-prompt semantic expansion table.
 # "positive": semantic variants that describe the same target — all counted.
@@ -91,15 +102,19 @@ class YOLOWorldAdapter(ModelAdapter):
         img_array = np.array(image)
 
         classes, negative_indices = _build_classes(prompt)
+        # Recall fix: drop the model's raw confidence floor to threshold**2 so a
+        # raw ~9% detection survives when the UI slider is at 30%. Calibration
+        # (sqrt) later maps it back up to the 30% the user sees.
+        raw_conf = max(threshold ** 2, MIN_RAW_FLOOR)
         print(f"[yolo_world] positive={[c for i,c in enumerate(classes) if i not in negative_indices]}")
         print(f"[yolo_world] negative={[c for i,c in enumerate(classes) if i in negative_indices]}")
-        print(f"[yolo_world] conf={threshold}")
+        print(f"[yolo_world] ui_threshold={threshold}  raw_conf_floor={raw_conf:.4f}")
 
         self._model.set_classes(classes)
 
         results = self._model.predict(
             img_array,
-            conf=threshold,
+            conf=raw_conf,
             iou=0.5,
             verbose=False,
         )
@@ -147,7 +162,16 @@ class YOLOWorldAdapter(ModelAdapter):
 
         final_pos.sort(key=lambda b: b.score, reverse=True)
         final = final_pos[:max_boxes]
-        return [b.model_copy(update={"id": i}) for i, b in enumerate(final)]
+
+        # Final step: apply sqrt calibration to displayed scores, then drop anything
+        # that still falls below the UI threshold (safety net — the raw_conf floor
+        # already enforces this when threshold**2 >= MIN_RAW_FLOOR).
+        calibrated: List[DetectedBox] = []
+        for b in final:
+            cal = _calibrate(b.score)
+            if cal >= threshold:
+                calibrated.append(b.model_copy(update={"score": round(cal, 4)}))
+        return [b.model_copy(update={"id": i}) for i, b in enumerate(calibrated)]
 
     def verify_crops(
         self,
