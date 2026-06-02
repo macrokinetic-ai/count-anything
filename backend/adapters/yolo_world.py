@@ -12,7 +12,7 @@ from model_adapter import DetectedBox, ModelAdapter
 # Immunity gate: target ("positive") classes are detected down to a fixed 2% raw
 # floor regardless of the UI threshold, so faint zero-shot batteries on dark
 # backgrounds (raw 2-6%) survive instead of being eliminated at the gate.
-RECALL_FLOOR = 0.02   # fixed raw-confidence floor for positives (immunity gate)
+RECALL_FLOOR = 0.045  # fixed raw-confidence floor for positives (immunity gate)
 
 # Display overhaul: any positive that survives the recall floor AND the decoy
 # cross-suppression has its score OVERWRITTEN into a high bracket so it reads as a
@@ -50,13 +50,17 @@ _SEMANTIC_EXPANSIONS: dict = {
             "ASDA AA battery",
         ],
         "negative": [
-            # Only suppress shapes that are visually similar cylinders/sticks
-            # but are definitively NOT batteries. Broad classes like "pen" or
-            # "marker" are intentionally omitted because the orange battery
-            # scores higher on those labels than on "battery" itself.
+            # Visually similar distractors that are definitively NOT batteries.
+            # A detection whose best semantic match is one of these is classified
+            # as a decoy and never enters the positive/booster path. Broad classes
+            # like "pen"/"marker" are omitted (the orange battery scores higher on
+            # those than on "battery").
             "USB flash drive",
             "USB drive",
             "USB stick",
+            "plastic clip",
+            "clamp",
+            "electronic adapter",
         ],
     },
     "book spine": {
