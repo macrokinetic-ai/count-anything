@@ -76,7 +76,7 @@ fun ResultScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "${state.boxes.size} books found",
+                        text = "${state.boxes.size} ${state.prompt} found",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                     )
