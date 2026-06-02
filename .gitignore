@@ -26,6 +26,8 @@ pip-log.txt
 *.bin
 *.ckpt
 *.weights
+*.tflite
+android/app/src/main/assets/*.tflite
 runs/          # Ultralytics training run output
 weights/
 

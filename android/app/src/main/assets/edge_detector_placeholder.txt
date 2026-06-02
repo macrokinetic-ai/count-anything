@@ -1,0 +1,9 @@
+Place the TFLite model file here as: edge_detector.tflite
+
+Export command (run from backend/ with venv active):
+  cd /tmp && yolo export model=yolov8n.pt format=tflite int8=True imgsz=640
+  cp yolov8n_saved_model/yolov8n_integer_quant.tflite \
+     <project>/android/app/src/main/assets/edge_detector.tflite
+
+The .tflite file is excluded from git via .gitignore.
+Without it, the app gracefully falls back to server_only mode.

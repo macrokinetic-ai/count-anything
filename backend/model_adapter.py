@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional
 from PIL import Image
 from pydantic import BaseModel
 
@@ -11,6 +11,8 @@ class DetectedBox(BaseModel):
     x2: float
     y2: float
     score: float
+    geometric_score: Optional[float] = None  # hybrid mode only
+    semantic_score: Optional[float] = None   # hybrid mode only
 
 
 class ModelAdapter(ABC):

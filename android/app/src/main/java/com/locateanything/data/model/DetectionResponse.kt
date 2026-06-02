@@ -9,6 +9,8 @@ data class DetectedBox(
     val x2: Float,
     val y2: Float,
     val score: Float,
+    @SerializedName("geometric_score") val geometricScore: Float? = null,
+    @SerializedName("semantic_score")  val semanticScore: Float?  = null,
 )
 
 data class DetectionResponse(
@@ -18,5 +20,6 @@ data class DetectionResponse(
     val model: String,
     @SerializedName("version_id")   val versionId: String,
     @SerializedName("inference_ms") val inferenceMs: Long,
+    val mode: String = "server_only",
     val boxes: List<DetectedBox>,
 )

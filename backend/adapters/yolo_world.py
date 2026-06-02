@@ -149,6 +149,33 @@ class YOLOWorldAdapter(ModelAdapter):
         final = final_pos[:max_boxes]
         return [b.model_copy(update={"id": i}) for i, b in enumerate(final)]
 
+    def verify_crops(
+        self,
+        crops: List[Image.Image],
+        classes: List[str],
+        negative_indices: Set[int],
+        threshold: float = 0.01,
+    ) -> List[float]:
+        """
+        Batch semantic scoring for hybrid mode.
+        Runs YOLO-World on each pre-cropped image at low confidence (0.01) to
+        get raw semantic alignment scores. Returns the highest positive-class
+        confidence found per crop (0.0 if nothing detected).
+        """
+        self._model.set_classes(classes)
+        scores: List[float] = []
+        for crop in crops:
+            crop_arr = np.array(crop.convert("RGB"))
+            results = self._model.predict(crop_arr, conf=threshold, iou=0.5, verbose=False)
+            best = 0.0
+            for result in results:
+                for box in result.boxes:
+                    cls_idx = int(box.cls[0])
+                    if cls_idx not in negative_indices:
+                        best = max(best, float(box.conf[0]))
+            scores.append(best)
+        return scores
+
 
 def _build_classes(prompt: str) -> Tuple[List[str], Set[int]]:
     """

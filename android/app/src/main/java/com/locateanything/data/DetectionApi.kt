@@ -16,5 +16,6 @@ interface DetectionApi {
         @Part("prompt") prompt: RequestBody,
         @Part("threshold") threshold: RequestBody,
         @Part("max_boxes") maxBoxes: RequestBody,
+        @Part("proposed_boxes") proposedBoxes: RequestBody? = null,
     ): DetectionResponse
 }

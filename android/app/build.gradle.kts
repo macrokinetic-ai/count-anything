@@ -34,6 +34,10 @@ android {
     buildFeatures {
         compose = true
     }
+
+    aaptOptions {
+        noCompress += listOf("tflite")
+    }
 }
 
 dependencies {
@@ -54,6 +58,7 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.exifinterface)
     implementation(libs.material)
+    implementation(libs.tensorflow.lite)
 
     debugImplementation(libs.androidx.ui.tooling)
 }
