@@ -26,11 +26,13 @@ _SEMANTIC_EXPANSIONS: dict = {
             "duracell",
         ],
         "negative": [
+            # Only suppress shapes that are visually similar cylinders/sticks
+            # but are definitively NOT batteries. Broad classes like "pen" or
+            # "marker" are intentionally omitted because the orange battery
+            # scores higher on those labels than on "battery" itself.
             "USB flash drive",
             "USB drive",
-            "pen",
-            "marker",
-            "paper clip",
+            "USB stick",
         ],
     },
     "book spine": {
@@ -71,9 +73,8 @@ class YOLOWorldAdapter(ModelAdapter):
         if size not in _MODEL_FILES:
             raise ValueError(f"MODEL_SIZE must be one of: {list(_MODEL_FILES.keys())}")
         model_file, self.model_name = _MODEL_FILES[size]
-        self._imgsz = int(os.getenv("IMGSZ", "1280"))
         self._model = YOLO(model_file)
-        print(f"[yolo_world] loaded {model_file}  MODEL_SIZE={size}  IMGSZ={self._imgsz}")
+        print(f"[yolo_world] loaded {model_file}  MODEL_SIZE={size}")
 
     def detect(
         self,
@@ -88,7 +89,7 @@ class YOLOWorldAdapter(ModelAdapter):
         classes, negative_indices = _build_classes(prompt)
         print(f"[yolo_world] positive={[c for i,c in enumerate(classes) if i not in negative_indices]}")
         print(f"[yolo_world] negative={[c for i,c in enumerate(classes) if i in negative_indices]}")
-        print(f"[yolo_world] conf={threshold}  imgsz={self._imgsz}")
+        print(f"[yolo_world] conf={threshold}")
 
         self._model.set_classes(classes)
 
@@ -96,7 +97,6 @@ class YOLOWorldAdapter(ModelAdapter):
             img_array,
             conf=threshold,
             iou=0.5,
-            imgsz=self._imgsz,
             verbose=False,
         )
 
