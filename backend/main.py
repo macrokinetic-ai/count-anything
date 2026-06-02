@@ -15,11 +15,14 @@ DEBUG_SAVE = os.getenv("DEBUG_SAVE", "0") == "1"
 _DEBUG_PATH = os.path.join(os.path.dirname(__file__), "debug_input.jpg")
 
 
+VERSION_ID = "v1.0.5_L_Model_UK_Boost"
+
 class DetectResponse(BaseModel):
     count: int
     image_width: int
     image_height: int
     model: str
+    version_id: str
     inference_ms: int
     boxes: List[DetectedBox]
 
@@ -95,6 +98,7 @@ async def detect(
         image_width=img_w,
         image_height=img_h,
         model=app.state.adapter.model_name,
+        version_id=VERSION_ID,
         inference_ms=inference_ms,
         boxes=boxes,
     )

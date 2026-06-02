@@ -16,6 +16,7 @@ data class DetectionResponse(
     @SerializedName("image_width")  val imageWidth: Int,
     @SerializedName("image_height") val imageHeight: Int,
     val model: String,
+    @SerializedName("version_id")   val versionId: String,
     @SerializedName("inference_ms") val inferenceMs: Long,
     val boxes: List<DetectedBox>,
 )

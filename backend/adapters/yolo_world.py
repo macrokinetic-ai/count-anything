@@ -24,6 +24,10 @@ _SEMANTIC_EXPANSIONS: dict = {
             "cylindrical battery",
             "alkaline battery",
             "duracell",
+            "Halfords battery",
+            "ASDA battery",
+            "Halfords AA battery",
+            "ASDA AA battery",
         ],
         "negative": [
             # Only suppress shapes that are visually similar cylinders/sticks
@@ -69,7 +73,7 @@ class YOLOWorldAdapter(ModelAdapter):
 
     def __init__(self) -> None:
         from ultralytics import YOLO
-        size = os.getenv("MODEL_SIZE", "m").lower()
+        size = os.getenv("MODEL_SIZE", "l").lower()
         if size not in _MODEL_FILES:
             raise ValueError(f"MODEL_SIZE must be one of: {list(_MODEL_FILES.keys())}")
         model_file, self.model_name = _MODEL_FILES[size]

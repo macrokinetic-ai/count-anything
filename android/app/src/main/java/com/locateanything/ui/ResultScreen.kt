@@ -135,7 +135,7 @@ fun ResultScreen(
 
                 // Model attribution
                 Text(
-                    text = "Model: ${state.model}",
+                    text = "Model: ${state.model} | Ver: ${state.versionId}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp),
