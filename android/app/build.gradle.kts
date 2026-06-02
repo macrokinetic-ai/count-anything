@@ -36,7 +36,7 @@ android {
     }
 
     aaptOptions {
-        noCompress += listOf("tflite")
+        noCompress += listOf("tflite", "onnx")
     }
 }
 
@@ -58,7 +58,7 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.exifinterface)
     implementation(libs.material)
-    implementation(libs.tensorflow.lite)
+    implementation(libs.onnxruntime.android)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

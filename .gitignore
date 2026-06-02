@@ -27,7 +27,9 @@ pip-log.txt
 *.ckpt
 *.weights
 *.tflite
+*.onnx
 android/app/src/main/assets/*.tflite
+android/app/src/main/assets/*.onnx
 runs/          # Ultralytics training run output
 weights/
 
