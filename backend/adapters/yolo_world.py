@@ -104,9 +104,12 @@ class YOLOWorldAdapter(ModelAdapter):
             verbose=False,
         )
 
-        # Collect every raw detection with a flag for whether it's a decoy class.
-        raw_boxes: List[DetectedBox] = []
-        raw_is_neg: List[bool] = []
+        # Separate positive and negative detections immediately — never mix them
+        # in NMS. The previous bug: USB stick at 0.14 would win NMS over battery
+        # at 0.13 for the same box, then get dropped as DECOY, silently erasing
+        # the battery detection.
+        pos_boxes: List[DetectedBox] = []
+        neg_boxes: List[DetectedBox] = []
 
         for result in results:
             for box in result.boxes:
@@ -117,25 +120,33 @@ class YOLOWorldAdapter(ModelAdapter):
                 label = classes[cls_idx]
                 tag = "DECOY" if is_neg else "HIT"
                 print(f"  {tag:5s}  {label!r:<28s} {score:.3f}  [{x1:.0f},{y1:.0f},{x2:.0f},{y2:.0f}]")
-                raw_boxes.append(DetectedBox(
+                entry = DetectedBox(
                     id=0,
                     x1=x1 / img_w, y1=y1 / img_h,
                     x2=x2 / img_w, y2=y2 / img_h,
                     score=round(score, 4),
-                ))
-                raw_is_neg.append(is_neg)
+                )
+                if is_neg:
+                    neg_boxes.append(entry)
+                else:
+                    pos_boxes.append(entry)
 
-        # Cross-class NMS over ALL boxes (positive + negative).
-        # A decoy detected at higher confidence than an overlapping positive will
-        # win the NMS and both get dropped — correctly suppressing the false positive.
-        kept = _cross_class_nms_indices(raw_boxes, iou_threshold=0.4)
+        # Step 1: NMS on positives only — removes duplicate boxes when multiple
+        # positive classes (e.g. "battery" + "alkaline battery") fire on the same object.
+        deduped_pos = _nms(pos_boxes, iou_threshold=0.4)
 
-        positive = [
-            raw_boxes[i] for i in kept if not raw_is_neg[i]
-        ]
+        # Step 2: NMS on negatives only — consolidates negative regions.
+        deduped_neg = _nms(neg_boxes, iou_threshold=0.4)
 
-        positive.sort(key=lambda b: b.score, reverse=True)
-        final = positive[:max_boxes]
+        # Step 3: Cross-polarity suppression — a positive is only suppressed if a
+        # negative box covers the SAME region (IoU > 0.6) AND beats it by a clear
+        # margin (50% higher score). This prevents a marginal DECOY win from erasing
+        # a legitimate detection.
+        final_pos = _suppress_by_negatives(deduped_pos, deduped_neg,
+                                           iou_threshold=0.6, margin=1.5)
+
+        final_pos.sort(key=lambda b: b.score, reverse=True)
+        final = final_pos[:max_boxes]
         return [b.model_copy(update={"id": i}) for i, b in enumerate(final)]
 
 
@@ -166,15 +177,48 @@ def _build_classes(prompt: str) -> Tuple[List[str], Set[int]]:
     return all_classes, negative_indices
 
 
-def _cross_class_nms_indices(boxes: List[DetectedBox], iou_threshold: float) -> List[int]:
+def _nms(boxes: List[DetectedBox], iou_threshold: float) -> List[DetectedBox]:
+    """Standard NMS within a single polarity group (all-positive or all-negative)."""
     if len(boxes) < 2:
-        return list(range(len(boxes)))
-
-    import torch
-    import torchvision.ops
-
-    coords = torch.tensor(
-        [[b.x1, b.y1, b.x2, b.y2] for b in boxes], dtype=torch.float32
-    )
+        return list(boxes)
+    import torch, torchvision.ops
+    coords = torch.tensor([[b.x1, b.y1, b.x2, b.y2] for b in boxes], dtype=torch.float32)
     scores = torch.tensor([b.score for b in boxes], dtype=torch.float32)
-    return torchvision.ops.nms(coords, scores, iou_threshold).tolist()
+    keep = torchvision.ops.nms(coords, scores, iou_threshold).tolist()
+    return [boxes[i] for i in keep]
+
+
+def _iou(a: DetectedBox, b: DetectedBox) -> float:
+    ix1 = max(a.x1, b.x1); iy1 = max(a.y1, b.y1)
+    ix2 = min(a.x2, b.x2); iy2 = min(a.y2, b.y2)
+    inter = max(0.0, ix2 - ix1) * max(0.0, iy2 - iy1)
+    if inter == 0:
+        return 0.0
+    area_a = (a.x2 - a.x1) * (a.y2 - a.y1)
+    area_b = (b.x2 - b.x1) * (b.y2 - b.y1)
+    return inter / (area_a + area_b - inter)
+
+
+def _suppress_by_negatives(
+    positives: List[DetectedBox],
+    negatives: List[DetectedBox],
+    iou_threshold: float,
+    margin: float,
+) -> List[DetectedBox]:
+    """
+    Remove a positive only when a negative box overlaps it by >= iou_threshold
+    AND the negative's score is >= positive_score * margin.
+    The margin requirement prevents a marginally-higher DECOY from erasing a
+    legitimate hit just because "USB stick" edges out "battery" by 0.007.
+    """
+    result = []
+    for pos in positives:
+        suppressed = any(
+            _iou(pos, neg) >= iou_threshold and neg.score >= pos.score * margin
+            for neg in negatives
+        )
+        if not suppressed:
+            result.append(pos)
+        else:
+            print(f"  SUPPRESSED positive {pos.score:.3f} by overlapping decoy")
+    return result

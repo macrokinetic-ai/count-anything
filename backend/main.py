@@ -15,7 +15,7 @@ DEBUG_SAVE = os.getenv("DEBUG_SAVE", "0") == "1"
 _DEBUG_PATH = os.path.join(os.path.dirname(__file__), "debug_input.jpg")
 
 
-VERSION_ID = "v1.0.5_L_Model_UK_Boost"
+VERSION_ID = "v1.0.6_HARD_RESET_LARGE_L_CORE"
 
 class DetectResponse(BaseModel):
     count: int
